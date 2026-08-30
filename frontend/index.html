@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Browser Agent MVP</title><link rel="stylesheet" href="/static/app.css"></head>
+<body>
+<main><section class="hero"><p class="eyebrow">BROWSER AGENT MVP</p><h1>让 Agent 替你完成网页检索</h1><p>受限于本地演示商城，所有操作和证据都可追溯。</p></section>
+<details><summary>模型设置（可选）</summary><div id="settings"><label>Base URL<input id="base-url" value="https://api.openai.com/v1"></label><label>模型<input id="model" value="gpt-4.1-mini"></label><label>API Key<input id="api-key" type="password" placeholder="仅存于当前服务进程"></label><button id="save-settings" type="button">保存设置</button><span id="settings-status"></span></div></details>
+<form id="task-form"><label>检索关键词<input id="query" value="无线耳机" required></label><label>最高价格（元）<input id="price" type="number" value="500" min="1" required></label><label>最低评分<input id="rating" type="number" value="4.5" min="0" max="5" step="0.1" required></label><button>开始执行</button></form>
+<section id="status" aria-live="polite">等待任务开始。</section><section class="grid"><div><h2>执行轨迹</h2><ol id="steps"></ol></div><div><h2>推荐结果</h2><div id="results"></div></div></section></main><script src="/static/app.js"></script>
+</body></html>

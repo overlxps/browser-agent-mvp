@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ShopFlow</title><link rel="stylesheet" href="/static/store.css"></head>
+<body>
+  <header><a class="brand" href="/demo-store.html">ShopFlow <small>agent sandbox</small></a><div class="search"><input id="search-input" placeholder="搜索商品"><button id="search-button">搜索</button></div></header>
+  <main>
+    <section class="intro"><p class="eyebrow">PRODUCT DISCOVERY SANDBOX</p><h1>找到更合适的商品</h1><p>本地可控环境：包含检索、筛选、排序、分页与详情状态，专供 Agent 评测。</p></section>
+    <section class="toolbar" aria-label="商品筛选条件">
+      <label>分类<select id="category-filter"><option value="">全部分类</option><option value="无线耳机">无线耳机</option><option value="键盘">键盘</option></select></label>
+      <label>最高价格<select id="price-filter"><option value="">不限</option><option value="300">¥300 以下</option><option value="500">¥500 以下</option><option value="800">¥800 以下</option></select></label>
+      <label>最低评分<select id="rating-filter"><option value="">不限</option><option value="4.5">4.5 及以上</option><option value="4.7">4.7 及以上</option></select></label>
+      <label>排序<select id="sort-filter"><option value="recommended">综合推荐</option><option value="rating">评分从高到低</option><option value="price-asc">价格从低到高</option></select></label>
+      <button id="reset-button" class="quiet">重置</button>
+    </section>
+    <div class="result-row"><p id="result-count">全部商品</p><p id="page-status"></p></div>
+    <section id="products"></section>
+    <nav class="pagination" aria-label="分页"><button id="previous-page" class="quiet">上一页</button><button id="next-page">下一页</button></nav>
+  </main>
+  <dialog id="product-dialog"><button id="close-dialog" class="close">×</button><div id="detail-content"></div></dialog>
+  <script src="/static/store.js"></script>
+</body>
+</html>
