@@ -1,0 +1,32 @@
+id: travelflow-search-weekend-hotel
+site: travelflow
+description: 找两家 9 月周末价格低于 800、评分不低于 4.5 的酒店
+instruction: 找两家周末价格低于 800、评分不低于 4.5 的酒店
+handler: travelflow_search_weekend_hotel
+expected:
+  minimum_results: 2
+  max_price: 800
+  min_rating: 4.5
+params:
+  month: current
+  max_price: 800
+  min_rating: 4.5
+  limit: 2
+  weekend_only: true
+checks:
+  - name: returns_at_least_two_hotels
+    type: count_gte
+    path: hotels
+    value: 2
+  - name: respects_price_limit
+    type: all_lte
+    path: hotels
+    field: price
+    value: 800
+  - name: respects_rating_limit
+    type: all_gte
+    path: hotels
+    field: rating
+    value: 4.5
+  - name: agent_completed
+    type: completed

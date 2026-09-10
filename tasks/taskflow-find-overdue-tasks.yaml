@@ -1,0 +1,26 @@
+id: taskflow-find-overdue-tasks
+site: taskflow
+description: 找出所有已逾期的待办任务并将它们标记为进行中
+instruction: 找到截止日期早于今天的全部待办任务，将它们标记为进行中
+handler: taskflow_overdue_update
+expected:
+  updated_count: 5
+  target_status: in_progress
+params:
+  target_status: in_progress
+  limit: 5
+checks:
+  - name: updates_all_overdue_tasks
+    type: count_equals
+    path: updated_tasks
+    value: 5
+  - name: all_are_overdue
+    type: all_before_today
+    path: updated_tasks
+    field: due_date
+  - name: all_marked_in_progress
+    type: field_equals
+    path: all_in_progress
+    value: true
+  - name: agent_completed
+    type: completed

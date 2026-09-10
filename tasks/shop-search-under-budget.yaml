@@ -1,0 +1,31 @@
+id: shop-search-under-budget
+site: shopflow
+description: 在无线耳机中找出 3 个价格不超过 500 元、评分不低于 4.5 的结果
+instruction: 搜索无线耳机，筛选预算与评分后返回 3 个商品
+handler: shopflow_search
+expected:
+  minimum_results: 3
+  max_price: 500
+  min_rating: 4.5
+params:
+  query: 无线耳机
+  max_price: 500
+  min_rating: 4.5
+  limit: 3
+checks:
+  - name: returns_exactly_three
+    type: count_equals
+    path: products
+    value: 3
+  - name: respects_price_limit
+    type: all_lte
+    path: products
+    field: price
+    value: 500
+  - name: respects_rating_limit
+    type: all_gte
+    path: products
+    field: rating
+    value: 4.5
+  - name: agent_completed
+    type: completed

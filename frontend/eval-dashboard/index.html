@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eval Dashboard</title>
+  <link rel="stylesheet" href="/static/eval-dashboard/dashboard.css">
+</head>
+<body>
+  <main>
+    <div class="nav-links">
+      <a href="/">任务执行</a>
+      <a href="/demo-store.html">ShopFlow</a>
+      <a href="/demo-taskflow.html">TaskFlow</a>
+      <a href="/demo-travelflow.html">TravelFlow</a>
+    </div>
+    <section class="hero">
+      <p class="eyebrow">EVAL DASHBOARD</p>
+      <h1>评测结果总览</h1>
+      <p>运行 10 个固定任务，查看成功率、平均耗时、步骤数与失败原因。</p>
+    </section>
+    <section class="panel stats" id="summary">
+      <div><strong id="success-rate">-</strong><span>成功率</span></div>
+      <div><strong id="avg-duration">-</strong><span>平均耗时</span></div>
+      <div><strong id="avg-steps">-</strong><span>平均步骤</span></div>
+      <div><strong id="avg-retries">-</strong><span>平均重试</span></div>
+    </section>
+    <section class="panel toolbar">
+      <button id="run-all">运行全部评测</button>
+      <select id="report-select" aria-label="历史报告">
+        <option value="">选择历史报告</option>
+      </select>
+      <span id="status">等待操作。</span>
+    </section>
+    <section class="panel">
+      <h2>任务定义</h2>
+      <table>
+        <thead>
+          <tr><th>任务 ID</th><th>环境</th><th>指令</th></tr>
+        </thead>
+        <tbody id="task-table"></tbody>
+      </table>
+    </section>
+    <section class="panel">
+      <h2>评测结果</h2>
+      <table>
+        <thead>
+          <tr><th>任务</th><th>状态</th><th>耗时</th><th>步骤</th><th>重试</th><th>失败分类</th><th>失败原因</th><th>断言</th></tr>
+        </thead>
+        <tbody id="result-table"></tbody>
+      </table>
+    </section>
+    <section class="panel">
+      <h2>失败分类</h2>
+      <p class="hint">模型规划失败 / 页面定位失败 / 工具执行失败 / 任务验证失败——不同类别对应不同的处理策略，而不是统一重试。</p>
+      <ul id="category-list" class="check-list"><li>暂无失败分类数据</li></ul>
+    </section>
+    <section class="panel">
+      <h2>主要失败原因</h2>
+      <ul id="failure-list" class="check-list"></ul>
+    </section>
+  </main>
+  <script src="/static/eval-dashboard/dashboard.js"></script>
+</body>
+</html>

@@ -7,21 +7,27 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.agent import DeterministicShoppingAgent, OpenAICompatiblePlanner
-from backend.eval.shopflow import evaluate_shopflow
+from backend.eval import build_eval_runner
 from backend.schemas import LLMSettings, RunRequest, RunResult
 
 ROOT = Path(__file__).resolve().parent.parent
 FRONTEND = ROOT / "frontend"
 SCREENSHOTS = ROOT / "runtime" / "screenshots"
 STORE_URL = "http://127.0.0.1:8000/demo-store.html"
+TASKFLOW_URL = "http://127.0.0.1:8000/demo-taskflow.html"
+TRAVELFLOW_URL = "http://127.0.0.1:8000/demo-travelflow.html"
 
-app = FastAPI(title="Browser Agent MVP", version="0.1.0")
+app = FastAPI(title="Browser Agent MVP", version="0.3.0")
 app.mount("/static", StaticFiles(directory=FRONTEND), name="static")
 llm_settings = LLMSettings()
 
 
 def build_agent() -> DeterministicShoppingAgent:
     return DeterministicShoppingAgent(STORE_URL, SCREENSHOTS, OpenAICompatiblePlanner(llm_settings))
+
+
+def build_evals():
+    return build_eval_runner(ROOT, llm_settings)
 
 
 @app.get("/", include_in_schema=False)
@@ -32,6 +38,22 @@ async def home():
 @app.get("/demo-store.html", include_in_schema=False)
 async def demo_store():
     return FileResponse(FRONTEND / "demo-store.html")
+
+
+@app.get("/demo-taskflow.html", include_in_schema=False)
+async def demo_taskflow():
+    return FileResponse(FRONTEND / "demo-taskflow.html")
+
+
+@app.get("/demo-travelflow.html", include_in_schema=False)
+async def demo_travelflow():
+    return FileResponse(FRONTEND / "demo-travelflow.html")
+
+
+@app.get("/eval-dashboard", include_in_schema=False)
+@app.get("/eval", include_in_schema=False)
+async def eval_dashboard():
+    return FileResponse(FRONTEND / "eval-dashboard" / "index.html")
 
 
 @app.get("/health")
@@ -51,10 +73,28 @@ async def set_config(settings: LLMSettings):
     return {"configured": bool(llm_settings.api_key), "message": "模型配置仅保存在当前服务进程内。"}
 
 
-@app.post("/api/evals/shopflow")
-async def run_shopflow_evaluation():
+@app.get("/api/evals/tasks")
+async def list_eval_tasks():
+    return build_evals().list_tasks()
+
+
+@app.get("/api/evals/reports")
+async def list_eval_reports():
+    return build_evals().list_reports()
+
+
+@app.get("/api/evals/reports/{report_id}")
+async def get_eval_report(report_id: str):
     try:
-        return await evaluate_shopflow(build_agent())
+        return build_evals().load_report(report_id)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.post("/api/evals/run")
+async def run_eval_suite():
+    try:
+        return await build_evals().run_all()
     except Exception as error:
         raise HTTPException(status_code=500, detail=f"Evaluation failed: {type(error).__name__}: {error}") from error
 

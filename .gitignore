@@ -3,3 +3,10 @@ __pycache__/
 .pytest_cache/
 playwright-report/
 test-results/
+
+# 评测运行产物：截图与报告由每次运行生成，保留目录结构但不纳入版本控制
+runtime/screenshots/*
+!runtime/screenshots/.gitkeep
+runtime/*.json
+reports/*.json
+!reports/.gitkeep

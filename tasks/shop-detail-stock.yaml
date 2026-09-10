@@ -1,0 +1,14 @@
+id: shop-detail-stock
+site: shopflow
+description: 打开商品详情并验证库存字段
+instruction: 打开 air-2 详情页并读取库存
+handler: shopflow_detail
+params:
+  product_id: air-2
+checks:
+  - name: detail_stock_matches
+    type: field_equals
+    path: detail.stock
+    value: "12"
+  - name: agent_completed
+    type: completed

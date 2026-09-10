@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TravelFlow</title>
+  <link rel="stylesheet" href="/static/travelflow.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/demo-travelflow.html">TravelFlow <small>agent sandbox</small></a>
+  </header>
+  <main>
+    <section class="intro">
+      <p class="eyebrow">TRAVEL SEARCH SANDBOX</p>
+      <h1>搜索周末酒店</h1>
+      <p>本地可控环境：包含表单填写、多条件筛选、比较与推荐，专供 Agent 评测。</p>
+    </section>
+    <section class="search-panel" aria-label="搜索条件">
+      <label>月份
+        <select id="month-filter"></select>
+      </label>
+      <label>出行类型
+        <select id="weekend-filter">
+          <option value="weekend" selected>周末</option>
+          <option value="all">全部日期</option>
+        </select>
+      </label>
+      <label>最高价格
+        <select id="price-filter">
+          <option value="">不限</option>
+          <option value="600">¥600 以下</option>
+          <option value="800" selected>¥800 以下</option>
+          <option value="1000">¥1000 以下</option>
+        </select>
+      </label>
+      <label>最低评分
+        <select id="rating-filter">
+          <option value="">不限</option>
+          <option value="4.5" selected>4.5 及以上</option>
+          <option value="4.7">4.7 及以上</option>
+        </select>
+      </label>
+      <button id="search-button">搜索酒店</button>
+    </section>
+    <div class="result-row">
+      <p id="result-count">全部酒店</p>
+    </div>
+    <section id="hotels"></section>
+    <section id="comparison" hidden>
+      <h2>比较与推荐</h2>
+      <div id="comparison-content"></div>
+    </section>
+  </main>
+  <script src="/static/travelflow.js"></script>
+</body>
+</html>

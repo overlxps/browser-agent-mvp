@@ -1,0 +1,24 @@
+id: travelflow-compare-two-hotels
+site: travelflow
+description: 比较两家候选酒店并给出推荐
+instruction: 找两家周末酒店，比较后推荐一间
+handler: travelflow_compare_two_hotels
+expected:
+  minimum_results: 2
+params:
+  month: current
+  max_price: 800
+  min_rating: 4.5
+  limit: 2
+  weekend_only: true
+checks:
+  - name: has_two_hotels
+    type: count_equals
+    path: hotels
+    value: 2
+  - name: has_recommendation
+    type: field_equals
+    path: has_recommendation
+    value: true
+  - name: agent_completed
+    type: completed

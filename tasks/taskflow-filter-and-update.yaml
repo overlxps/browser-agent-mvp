@@ -1,0 +1,15 @@
+id: taskflow-filter-and-update
+site: taskflow
+description: 筛选已完成任务并统计数量
+instruction: 筛选已完成任务并返回数量
+handler: taskflow_count_done
+expected:
+  done_count: 3
+params: {}
+checks:
+  - name: counts_done_tasks
+    type: field_equals
+    path: done_count
+    value: 3
+  - name: agent_completed
+    type: completed

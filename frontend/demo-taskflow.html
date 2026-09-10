@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TaskFlow</title>
+  <link rel="stylesheet" href="/static/taskflow.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/demo-taskflow.html">TaskFlow <small>agent sandbox</small></a>
+  </header>
+  <main>
+    <section class="intro">
+      <p class="eyebrow">TASK OPERATIONS SANDBOX</p>
+      <h1>管理你的任务看板</h1>
+      <p>本地可控环境：包含筛选、状态修改与页面回读验证，专供 Agent 评测。</p>
+    </section>
+    <section class="toolbar" aria-label="任务筛选条件">
+      <label>优先级
+        <select id="priority-filter">
+          <option value="">全部优先级</option>
+          <option value="high">高优先级</option>
+          <option value="medium">中优先级</option>
+          <option value="low">低优先级</option>
+        </select>
+      </label>
+      <label>状态
+        <select id="status-filter">
+          <option value="">全部状态</option>
+          <option value="todo">待办</option>
+          <option value="in_progress">进行中</option>
+          <option value="done">已完成</option>
+        </select>
+      </label>
+      <button id="reset-button" class="quiet">重置</button>
+    </section>
+    <div class="result-row">
+      <p id="result-count">全部任务</p>
+    </div>
+    <section id="tasks"></section>
+  </main>
+  <script src="/static/taskflow.js"></script>
+</body>
+</html>

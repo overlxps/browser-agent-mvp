@@ -1,8 +1,7 @@
-from datetime import date
-
 from playwright.async_api import async_playwright
 
-from backend.schemas import TaskItem
+from backend.agent.executor import BrowserExecutor
+from backend.schemas import Action, ActionType, TaskItem
 
 
 class TaskFlowBrowser:
@@ -13,11 +12,13 @@ class TaskFlowBrowser:
         self._playwright = None
         self._browser = None
         self._page = None
+        self.executor: BrowserExecutor | None = None
 
     async def __aenter__(self):
         self._playwright = await async_playwright().start()
         self._browser = await self._playwright.chromium.launch(headless=True)
         self._page = await self._browser.new_page(viewport={"width": 1280, "height": 800})
+        self.executor = BrowserExecutor(self._page)
         return self
 
     async def __aexit__(self, exc_type, exc, traceback) -> None:
@@ -27,39 +28,55 @@ class TaskFlowBrowser:
             await self._playwright.stop()
 
     async def open(self) -> str:
-        await self._page.goto(self.url, wait_until="networkidle")
-        return await self._page.title()
+        return await self.executor.execute(Action(type=ActionType.NAVIGATE, reason="打开任务看板", value=self.url))
 
-    async def show_high_priority(self) -> None:
-        await self._page.locator("#priority-filter").select_option("high")
-        await self._page.wait_for_timeout(100)
+    async def filter_status(self, status: str) -> int:
+        await self.executor.execute(
+            Action(type=ActionType.SELECT, reason="按状态筛选任务", selector="#status-filter", value=status)
+        )
+        return await self._page.locator(".task-card").count()
 
-    async def extract_overdue_todos(self) -> list[TaskItem]:
-        today = date.today().isoformat()
+    async def extract_visible_tasks(self) -> list[TaskItem]:
         cards = self._page.locator(".task-card")
         tasks: list[TaskItem] = []
         for index in range(await cards.count()):
             card = cards.nth(index)
-            item = TaskItem(
-                id=await card.get_attribute("data-id"),
-                title=await card.locator("[data-field='title']").inner_text(),
-                priority=await card.get_attribute("data-priority"),
-                due_date=await card.get_attribute("data-due"),
-                status=await card.get_attribute("data-status"),
+            tasks.append(
+                TaskItem(
+                    id=await card.get_attribute("data-id"),
+                    title=await card.locator("[data-field='title']").inner_text(),
+                    priority=await card.get_attribute("data-priority"),
+                    due_date=await card.get_attribute("data-due"),
+                    status=await card.get_attribute("data-status"),
+                )
             )
-            if item.status == "todo" and item.due_date < today:
-                tasks.append(item)
-        return sorted(tasks, key=lambda task: task.due_date)
+        return tasks
 
     async def update_status(self, task_id: str, status: str) -> TaskItem:
         card = self._page.locator(f".task-card[data-id='{task_id}']")
-        await card.locator("[data-action='status']").select_option(status)
-        await self._page.wait_for_timeout(100)
+        await self.executor.execute(
+            Action(
+                type=ActionType.SELECT,
+                reason="更新任务状态",
+                selector=f".task-card[data-id='{task_id}'] [data-action='status']",
+                value=status,
+            )
+        )
         updated = self._page.locator(f".task-card[data-id='{task_id}']")
-        return TaskItem(
+        item = TaskItem(
             id=task_id,
             title=await updated.locator("[data-field='title']").inner_text(),
             priority=await updated.get_attribute("data-priority"),
             due_date=await updated.get_attribute("data-due"),
             status=await updated.get_attribute("data-status"),
         )
+        await self.executor.execute(
+            Action(
+                type=ActionType.VERIFY,
+                reason="回读任务状态",
+                selector=f".task-card[data-id='{task_id}']",
+                field="data-status",
+                expected=status,
+            )
+        )
+        return item

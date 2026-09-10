@@ -1,0 +1,22 @@
+id: taskflow-top-priority-update
+site: taskflow
+description: 找到优先级最高且截止日期最近的 3 个任务并标记为进行中
+instruction: 找到优先级最高且截止日期最近的 3 个任务，将它们标记为进行中
+handler: taskflow_top_priority_update
+expected:
+  updated_count: 3
+  target_status: in_progress
+params:
+  target_status: in_progress
+  limit: 3
+checks:
+  - name: updates_three_tasks
+    type: count_equals
+    path: updated_tasks
+    value: 3
+  - name: all_marked_in_progress
+    type: field_equals
+    path: all_in_progress
+    value: true
+  - name: agent_completed
+    type: completed

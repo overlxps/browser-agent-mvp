@@ -3,7 +3,8 @@ from urllib.parse import quote
 
 from playwright.async_api import async_playwright
 
-from backend.schemas import Product
+from backend.agent.executor import BrowserExecutor
+from backend.schemas import Action, ActionType, Product
 
 
 class DemoStoreBrowser:
@@ -15,6 +16,7 @@ class DemoStoreBrowser:
         self._playwright = None
         self._browser = None
         self._page = None
+        self.executor: BrowserExecutor | None = None
 
     async def __aenter__(self):
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
@@ -28,6 +30,7 @@ class DemoStoreBrowser:
             raise RuntimeError("Playwright Chromium could not launch") from error
         try:
             self._page = await self._browser.new_page(viewport={"width": 1280, "height": 800})
+            self.executor = BrowserExecutor(self._page)
         except NotImplementedError as error:
             raise RuntimeError("Playwright could not create a browser page") from error
         return self
@@ -39,26 +42,68 @@ class DemoStoreBrowser:
             await self._playwright.stop()
 
     async def open_store(self) -> str:
-        try:
-            await self._page.goto(self.store_url, wait_until="networkidle")
-        except NotImplementedError as error:
-            raise RuntimeError("Playwright could not open the local demo store") from error
-        return await self._page.title()
+        return await self.executor.execute(Action(type=ActionType.NAVIGATE, reason="打开商城", value=self.store_url))
 
     async def search(self, query: str) -> int:
-        await self._page.locator("#search-input").fill(query)
-        await self._page.locator("#search-button").click()
-        await self._page.wait_for_selector(".product-card")
+        await self.executor.execute(Action(type=ActionType.FILL, reason="填写搜索词", selector="#search-input", value=query))
+        await self.executor.execute(Action(type=ActionType.CLICK, reason="提交搜索", selector="#search-button"))
+        await self._page.wait_for_selector(".product-card, .empty")
         return await self._page.locator(".product-card").count()
 
-    async def apply_filters(self, max_price: float, min_rating: float) -> int:
+    PRICE_OPTIONS = ["300", "500", "800"]
+    RATING_OPTIONS = ["4.5", "4.7"]
+
+    @staticmethod
+    def _threshold_option(options: list[str], required: float, is_upper_bound: bool) -> str:
+        """Pick a discrete filter option whose result set is a superset of the requirement.
+
+        For a price cap the page option must be >= required (smallest such); for a rating
+        floor it must be <= required (largest such). The agent re-filters exact bounds in
+        Python afterwards. Returns "" (no filter) when no option can express the bound.
+        """
+        numeric = sorted(float(option) for option in options)
+        if is_upper_bound:
+            candidates = [value for value in numeric if value >= required]
+            value = min(candidates) if candidates else None
+        else:
+            candidates = [value for value in numeric if value <= required]
+            value = max(candidates) if candidates else None
+        if value is None:
+            return ""
+        return str(int(value)) if value == int(value) else str(value)
+
+    @classmethod
+    def price_option(cls, max_price: float) -> str:
+        return cls._threshold_option(cls.PRICE_OPTIONS, max_price, is_upper_bound=True)
+
+    @classmethod
+    def rating_option(cls, min_rating: float) -> str:
+        return cls._threshold_option(cls.RATING_OPTIONS, min_rating, is_upper_bound=False)
+
+    async def apply_filters(self, max_price: float, min_rating: float, category: str | None = None) -> int:
         """Apply native ShopFlow filters and verify the rendered result count."""
-        price_value = "500" if max_price <= 500 else "800" if max_price <= 800 else ""
-        rating_value = "4.7" if min_rating >= 4.7 else "4.5" if min_rating >= 4.5 else ""
-        await self._page.locator("#price-filter").select_option(price_value)
-        await self._page.locator("#rating-filter").select_option(rating_value)
+        if category:
+            await self.executor.execute(
+                Action(type=ActionType.SELECT, reason="选择分类", selector="#category-filter", value=category)
+            )
+        price_value = self.price_option(max_price)
+        rating_value = self.rating_option(min_rating)
+        if price_value:
+            await self.executor.execute(
+                Action(type=ActionType.SELECT, reason="选择价格上限", selector="#price-filter", value=price_value)
+            )
+        if rating_value:
+            await self.executor.execute(
+                Action(type=ActionType.SELECT, reason="选择最低评分", selector="#rating-filter", value=rating_value)
+            )
         await self._page.wait_for_timeout(100)
         return await self._page.locator(".product-card").count()
+
+    async def apply_sort(self, sort_value: str) -> None:
+        await self.executor.execute(
+            Action(type=ActionType.SELECT, reason="选择排序方式", selector="#sort-filter", value=sort_value)
+        )
+        await self._page.wait_for_timeout(100)
 
     async def extract_products(self) -> list[Product]:
         cards = self._page.locator(".product-card")
@@ -90,8 +135,24 @@ class DemoStoreBrowser:
             next_button = self._page.locator("#next-page")
             if await next_button.is_disabled():
                 return collected
-            await next_button.click()
+            await self.executor.execute(Action(type=ActionType.CLICK, reason="翻到下一页", selector="#next-page"))
             await self._page.wait_for_timeout(100)
+
+    async def open_product_detail(self, product_id: str) -> dict[str, str]:
+        await self.executor.execute(
+            Action(type=ActionType.CLICK, reason="打开商品详情", selector=f"[data-product-id='{product_id}']")
+        )
+        return await self.read_product_detail()
+
+    async def read_product_detail(self) -> dict[str, str]:
+        await self._page.wait_for_selector("#detail-content [data-field='stock']")
+        detail = self._page.locator("#detail-content")
+        return {
+            "name": await detail.locator("[data-field='name']").inner_text(),
+            "price": await detail.locator("[data-field='price']").inner_text(),
+            "rating": await detail.locator("[data-field='rating']").inner_text(),
+            "stock": await detail.locator("[data-field='stock']").inner_text(),
+        }
 
     async def screenshot(self, name: str) -> str:
         path = self.screenshot_dir / f"{name}.png"

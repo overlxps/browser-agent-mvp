@@ -1,0 +1,21 @@
+id: shop-open-top-product
+site: shopflow
+description: 打开指定高分商品详情并读取库存
+instruction: 打开 Orbit Pro 降噪耳机详情页并提取库存
+handler: shopflow_open_top_product
+expected:
+  product_id: air-2
+  stock: "12"
+params:
+  product_id: air-2
+checks:
+  - name: detail_name_matches
+    type: field_equals
+    path: detail.name
+    value: Orbit Pro 降噪耳机
+  - name: detail_stock_matches
+    type: field_equals
+    path: detail.stock
+    value: "12"
+  - name: agent_completed
+    type: completed

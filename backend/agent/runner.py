@@ -1,12 +1,15 @@
 from pathlib import Path
 
-from backend.schemas import Action, ActionType, Product, RunRequest, RunResult, StepLog
-from backend.tools import DemoStoreBrowser
+from backend.agent.memory import AgentMemory
 from backend.agent.planner import OpenAICompatiblePlanner
+from backend.agent.recovery import RecoveryPolicy
+from backend.agent.state_machine import AgentStateMachine
+from backend.schemas import Action, ActionType, AgentRunResult, Product, RunRequest
+from backend.tools import DemoStoreBrowser
 
 
 class DeterministicShoppingAgent:
-    """A safe baseline: planner decisions are fixed, browser effects are real."""
+    """A safe baseline using the observe-execute-verify state machine."""
 
     def __init__(self, store_url: str, screenshot_dir: Path, planner: OpenAICompatiblePlanner) -> None:
         self.store_url = store_url
@@ -26,91 +29,94 @@ class DeterministicShoppingAgent:
             product.reason = f"评分 {product.rating:.1f}，价格 ¥{product.price:.0f}，符合你的筛选条件。"
         return chosen
 
-    async def run(self, request: RunRequest) -> RunResult:
-        steps: list[StepLog] = []
-        max_steps = 6
-        repeated_searches = 0
-
-        def log(action: Action, observation: str, screenshot_path: str | None = None) -> None:
-            steps.append(StepLog(step=len(steps) + 1, action=action, observation=observation, screenshot_path=screenshot_path))
+    async def run(self, request: RunRequest) -> AgentRunResult:
+        memory = AgentMemory()
+        recovery = RecoveryPolicy(max_steps=10)
 
         async with DemoStoreBrowser(self.store_url, self.screenshot_dir) as browser:
+            async def observe() -> str:
+                count = await browser._page.locator(".product-card").count()
+                return f"当前页面显示 {count} 个商品卡片"
+
+            machine = AgentStateMachine(browser.executor, memory, recovery, observe, self.screenshot_dir)
             decision = await self.planner.next_action("start", request, "尚未打开页面。")
-            title = await browser.open_store()
-            log(decision.action, f"已打开：{title}（规划来源：{decision.source}）")
+            machine.model_calls += 1 if decision.source == "llm" else 0
+            await machine.run_action("打开 ShopFlow 商城", Action(type=ActionType.NAVIGATE, reason=decision.action.reason, value=self.store_url), planner_source=decision.source)
 
-            decision = await self.planner.next_action("opened", request, f"页面标题为 {title}。")
-            count = await browser.search(request.query)
-            log(
-                decision.action,
-                f"已搜索“{request.query}”，页面显示 {count} 个候选商品。（规划来源：{decision.source}）",
+            decision = await self.planner.next_action("opened", request, "页面已打开。")
+            machine.model_calls += 1 if decision.source == "llm" else 0
+            await machine.run_action(
+                f"搜索“{request.query}”",
+                Action(type=ActionType.FILL, reason=decision.action.reason, selector="#search-input", value=request.query),
+                planner_source=decision.source,
             )
-
-            count = await browser.apply_filters(request.max_price, request.min_rating)
-            screenshot = await browser.screenshot("after-filter")
-            log(
-                Action(type=ActionType.CLICK, reason="应用价格和评分筛选，并验证页面结果"),
-                f"已应用价格 ≤ ¥{request.max_price:.0f}、评分 ≥ {request.min_rating:.1f}；当前页显示 {count} 个候选商品。",
-                screenshot,
-            )
-
-            products: list[Product] = []
-            phase = "searched"
-            while len(steps) < max_steps:
-                observation = (
-                    f"当前搜索结果数量为 {count}，已提取商品数为 {len(products)}，"
-                    f"重复搜索次数为 {repeated_searches}。"
+            await machine.run_action("提交搜索", Action(type=ActionType.CLICK, reason="点击搜索", selector="#search-button"))
+            await browser.apply_filters(request.max_price, request.min_rating)
+            price_option = DemoStoreBrowser.price_option(request.max_price)
+            rating_option = DemoStoreBrowser.rating_option(request.min_rating)
+            if price_option:
+                await machine.run_action(
+                    f"应用价格 ≤ ¥{request.max_price:.0f} 筛选",
+                    Action(type=ActionType.SELECT, reason="价格筛选", selector="#price-filter", value=price_option),
                 )
-                decision = await self.planner.next_action(phase, request, observation)
-
-                if decision.action.type == ActionType.FILL:
-                    repeated_searches += 1
-                    if repeated_searches > 1:
-                        log(
-                            Action(type=ActionType.EXTRACT_PRODUCTS, reason="重复搜索保护：页面未变化，改为读取现有结果"),
-                            "检测到重复搜索，执行器拒绝重复操作并转入信息提取。",
-                        )
-                        products = await browser.extract_all_pages()
-                        phase = "extracted"
-                        continue
-                    count = await browser.search(request.query)
-                    log(decision.action, f"Agent 选择再次搜索，页面显示 {count} 个候选商品。（规划来源：{decision.source}）")
-                    continue
-
-                if decision.action.type == ActionType.EXTRACT_PRODUCTS:
-                    products = await browser.extract_all_pages()
-                    log(decision.action, f"已跨分页提取 {len(products)} 条结构化商品信息。（规划来源：{decision.source}）")
-                    phase = "extracted"
-                    continue
-
-                if decision.action.type == ActionType.FINISH:
-                    if not products:
-                        products = await browser.extract_all_pages()
-                        log(
-                            Action(type=ActionType.EXTRACT_PRODUCTS, reason="完成前验证：必须先获得结构化页面数据"),
-                            f"完成前验证通过：已提取 {len(products)} 条商品信息。",
-                        )
-                    log(decision.action, f"Agent 判断现有信息足够完成任务。（规划来源：{decision.source}）")
-                    break
-
-            if not products:
-                products = await browser.extract_all_pages()
-                log(
-                    Action(type=ActionType.EXTRACT_PRODUCTS, reason="达到最大步骤数后的安全恢复"),
-                    f"已达到 {max_steps} 步限制，提取当前页面的 {len(products)} 条商品信息。",
+            if rating_option:
+                await machine.run_action(
+                    f"应用评分 ≥ {request.min_rating:.1f} 筛选",
+                    Action(type=ActionType.SELECT, reason="评分筛选", selector="#rating-filter", value=rating_option),
                 )
+            products = await browser.extract_all_pages()
+            # Discrete filter options may be coarser than the request, so enforce exact bounds in Python.
+            products = [
+                product
+                for product in products
+                if product.price <= request.max_price and product.rating >= request.min_rating
+            ]
+            memory.remember("products", [product.model_dump() for product in products])
+            await machine.run_action("跨页提取商品", Action(type=ActionType.EXTRACT, reason="提取商品", selector=".product-card"))
+            await browser.screenshot(f"shopflow-final-{machine.run_id}")
+            await machine.run_action("完成商品检索", Action(type=ActionType.FINISH, reason="完成"))
 
         chosen = self.choose_products(products, request)
-        if not steps or steps[-1].action.type != ActionType.FINISH:
-            log(
-                Action(type=ActionType.FINISH, reason="筛选完成，输出最终结果"),
-                f"找到 {len(chosen)} 个满足价格 ≤ ¥{request.max_price:.0f} 且评分 ≥ {request.min_rating:.1f} 的商品。",
-            )
-        return RunResult(
+        return AgentRunResult(
             task=f"搜索 {request.query}，价格不高于 ¥{request.max_price:.0f}，评分不低于 {request.min_rating:.1f}",
             products=chosen,
-            steps=steps,
+            steps=memory.steps,
             completed=True,
-            message="任务完成。模型规划不可用时会自动使用安全回退策略。",
-            metadata={"max_steps": max_steps, "allowed_origin": self.store_url, "guards": ["action allowlist", "repeat-search protection", "finish verification"]},
+            message="任务完成。",
+            metadata={
+                "retry_count": recovery.total_retries,
+                "model_calls": machine.model_calls,
+                "failure_reasons": recovery.failure_reasons,
+            },
+        )
+
+    async def open_top_product(self, product_id: str) -> AgentRunResult:
+        memory = AgentMemory()
+        recovery = RecoveryPolicy(max_steps=8)
+        detail: dict[str, str] = {}
+
+        async with DemoStoreBrowser(self.store_url, self.screenshot_dir) as browser:
+            async def observe() -> str:
+                return await browser._page.title()
+
+            machine = AgentStateMachine(browser.executor, memory, recovery, observe, self.screenshot_dir)
+            await machine.run_action("打开 ShopFlow", Action(type=ActionType.NAVIGATE, reason="打开", value=self.store_url))
+            await machine.run_action(
+                "打开商品详情页",
+                Action(type=ActionType.CLICK, reason="打开详情", selector=f"[data-product-id='{product_id}']"),
+            )
+            detail = await browser.read_product_detail()
+            memory.remember("detail", detail)
+            await machine.run_action(
+                "读取详情库存",
+                Action(type=ActionType.EXTRACT, reason="提取库存", selector="#detail-content [data-field='stock']"),
+            )
+            await machine.run_action("完成详情读取", Action(type=ActionType.FINISH, reason="完成"))
+
+        return AgentRunResult(
+            task=f"打开商品 {product_id} 详情页",
+            steps=memory.steps,
+            completed=True,
+            message=detail.get("name", ""),
+            metadata={"detail": detail, "retry_count": recovery.total_retries},
         )

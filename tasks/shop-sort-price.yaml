@@ -1,0 +1,22 @@
+id: shop-sort-price
+site: shopflow
+description: 在无线耳机中按价格从低到高取前 2 个结果
+instruction: 搜索无线耳机并按价格升序返回前 2 个
+handler: shopflow_sort
+expected:
+  count: 2
+params:
+  query: 无线耳机
+  sort: price-asc
+  limit: 2
+checks:
+  - name: returns_two_items
+    type: count_equals
+    path: products
+    value: 2
+  - name: sorted_by_price_asc
+    type: sorted_asc
+    path: products
+    field: price
+  - name: agent_completed
+    type: completed

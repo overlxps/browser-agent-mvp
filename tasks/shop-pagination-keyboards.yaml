@@ -1,0 +1,20 @@
+id: shop-pagination-keyboards
+site: shopflow
+description: 筛选键盘分类并跨页提取全部商品
+instruction: 筛选键盘分类并提取全部结果
+handler: shopflow_category_extract
+expected:
+  count: 2
+params:
+  category: 键盘
+checks:
+  - name: returns_all_keyboards
+    type: count_equals
+    path: products
+    value: 2
+  - name: all_match_category
+    type: field_equals
+    path: category
+    value: 键盘
+  - name: agent_completed
+    type: completed
